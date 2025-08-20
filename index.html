@@ -1,0 +1,626 @@
+)<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>富士、狂気、そして御来光</title>
+    <style>
+        :root {
+            --main-bg-color: #000000;
+            --text-color: #E0E0E0;
+            --accent-color: #8A0303;
+            --choice-bg-color: #1A1A1A;
+            --choice-border-color: #444;
+            --vertical-padding: 2.5vh; /* 約1cmの感覚 */
+        }
+
+        body {
+            background-color: var(--main-bg-color);
+            color: var(--text-color);
+            font-family: 'Hiragino Kaku Gothic ProN', 'ヒラギノ角ゴ ProN W3', Meiryo, メイリオ, Osaka, 'MS PGothic', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* スクロールバーを隠す */
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        #title-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        #title-screen h1 {
+            font-size: 2.5em;
+            color: var(--accent-color);
+            margin: 0;
+            text-shadow: 2px 2px 4px #000;
+        }
+
+        #title-screen p {
+            font-size: 1em;
+            margin-top: 20px;
+        }
+
+        #game-screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            padding: var(--vertical-padding) 15px;
+            box-sizing: border-box;
+        }
+
+        #text-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            line-height: 1.8;
+            font-size: 1.1em;
+            padding-bottom: 20px;
+        }
+
+        #text-area p {
+            margin: 0;
+        }
+
+        /* タイプライターカーソル */
+        #text-area .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background-color: var(--text-color);
+            animation: blink 1s step-end infinite;
+            vertical-align: bottom;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        #choice-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* 選択肢間のスペース */
+        }
+        
+        .choice-button {
+            background-color: var(--choice-bg-color);
+            border: 1px solid var(--choice-border-color);
+            color: var(--text-color);
+            padding: 15px;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color 0.3s, border-color 0.3s;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .choice-button:hover {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        
+        <div id="title-screen">
+            <h1>富士、狂気、そして御来光</h1>
+            <p>画面をタップして開始</p>
+        </div>
+
+        <div id="game-screen">
+            <div id="text-area">
+                <p id="text-display"></p>
+            </div>
+            <div id="choice-area">
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const titleScreen = document.getElementById('title-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const textDisplay = document.getElementById('text-display');
+        const choiceArea = document.getElementById('choice-area');
+
+        let isTyping = false;
+        let currentSceneId = 'start';
+        
+        // ゲームの状態を管理するフラグ
+        let gameState = {
+            knowsYatakaIsAddict: false, // Yたかが中毒者だと知っているか
+            yatakaCalmed: false,         // Yたかを宥めたか
+            yocchinRoute: null,          // よっちんのルート 'follow' or 'stop'
+            distrustLevel: 0,            // 仲間からの不信感
+            survivors: ['おちぷー', 'ちばぶ', 'ゆっきん', 'デブコーン', 'Yたか', 'のぶん', 'よっちん', 'かとぱん', 'みっきん', 'エディマーシー'],
+            katopanPanic: false,         // かとぱんがパニックになったか
+            foundDebucorn: false,        // デブコーンを発見したか
+            finalChoiceReady: false      // 最終選択の準備
+        };
+
+        const scenes = {
+            // --- 導入 ---
+            start: {
+                text: "久しぶりに集まった幼馴染10人。今回の企画は富士登山だ。「頂上で御来光を見る」…言葉にすれば聞こえはいいが、メンバーの顔ぶれを見ると、一抹の不安がよぎる。全員、どこか普通じゃない。どこか、ネジが外れている。…もちろん、俺を含めて。",
+                choices: [
+                    { text: "登山を始める", next: 's1_gathering' }
+                ]
+            },
+            s1_gathering: {
+                text: "富士山五合目。空気が薄いせいか、あるいは目の前の男たちのせいか、少し息苦しい。よっちんが「うおー！テンション上がってきたー！」と馬鹿でかい声で叫んでいる。一方でYたかは顔色が悪く、小刻みに震えているように見える。",
+                choices: [
+                    { text: "Yたかに声をかける", next: 's2_talk_yataka' },
+                    { text: "よっちんをいじる", next: 's2_talk_yocchin' },
+                    { text: "何もせず、出発を待つ", next: 's2_wait' }
+                ]
+            },
+
+            // --- 序盤 ---
+            s2_talk_yataka: {
+                text: "「大丈夫か、Yたか？」声をかけると、Yたかはビクッと肩を震わせ、虚ろな目でこちらを見た。「…あ、ああ。大丈夫だ。問題ない」。そう言う彼の目は焦点が合っておらず、額には脂汗が滲んでいる。明らかに普通じゃない。こいつが薬物中毒者だという噂は本当だったらしい。",
+                choices: [
+                    { text: "深くは聞かず、様子を見る", next: 's3_climb_start', effect: (gs) => gs.knowsYatakaIsAddict = true }
+                ]
+            },
+            s2_talk_yocchin: {
+                text: "「よっちん、うるせえよ。動物が逃げるだろ」「えー、だってお祭りじゃん！」。全く話が通じない。彼の純粋な狂気は、時々羨ましくなる。隣にいたかとぱんが「まあまあ」と苦笑しているが、その目は全く笑っていなかった。",
+                choices: [
+                    { text: "登山を始めよう", next: 's3_climb_start' }
+                ]
+            },
+            s2_wait: {
+                text: "俺は誰とも話さず、ただ出発の時を待った。人間関係は登山において命綱にもなれば、首を絞めるロープにもなる。今は波風を立てるべきではない。みっきんが地図を広げ、リーダーシップを発揮している。「よし、みんな！準備はいいか？行こう！」",
+                choices: [
+                    { text: "頷く", next: 's3_climb_start' }
+                ]
+            },
+
+            s3_climb_start: {
+                text: "登山道は整備されているとはいえ、登るにつれて険しくなっていく。しばらく歩いていると、先程から様子のおかしかったYたかが突然立ち止まり、荒い息をつき始めた。「はぁ…はぁ…もう、ダメだ…」。",
+                choices: [
+                    { text: "「頑張れ」と励ます", next: 's4_yataka_encourage' },
+                    { text: "「置いていくぞ」と突き放す", next: 's4_yataka_abandon' },
+                    { text: "（中毒症状か…？）彼の荷物を探る", next: 's4_yataka_search', condition: (gs) => gs.knowsYatakaIsAddict }
+                ]
+            },
+
+            s4_yataka_encourage: {
+                text: "俺が励ましの言葉をかけると、Yたかは「うるさい！」と叫び、俺を突き飛ばした。彼は何かに怯えるように周囲を見回し、ブツブツと何かを呟いている。禁断症状だ。その異常な光景に、皆の間に緊張が走る。",
+                choices: [
+                    { text: "みんなで彼を押さえつける", next: 's5_yataka_restrain' },
+                    { text: "距離を置く", next: 's5_yataka_distance' }
+                ]
+            },
+            s4_yataka_abandon: {
+                text: "「情けないな。置いていくぞ」。俺の冷たい言葉に、Yたかは逆上した。「てめえ…！」彼は近くの岩を掴み、殴りかかろうとしてきた。その時、のぶんが間に入り、Yたかを羽交い締めにした。「落ち着け！」のぶんの腕の中でYたかは暴れ続ける。",
+                choices: [
+                    { text: "のぶんに任せる", next: 's5_yataka_restrain', effect: (gs) => gs.distrustLevel += 1 }
+                ]
+            },
+            s4_yataka_search: {
+                text: "皆がYたかに気を取られている隙に、俺は彼のザックに手を突っ込んだ。案の定、奥底に小さなビニール袋があった。中身は白い粉末。これを使わせれば落ち着くかもしれないが…。のぶんが彼を押さえつけている。",
+                choices: [
+                    { text: "薬を彼に渡す", next: 's5_yataka_drug' },
+                    { text: "薬をこっそり自分のポケットにしまう", next: 's5_yataka_steal' }
+                ]
+            },
+
+            s5_yataka_restrain: {
+                text: "数人がかりでYたかを押さえつけ、無理やり休憩を取らせた。30分ほどすると、彼は少し落ち着きを取り戻したが、その目には皆への不信感が宿っていた。グループの空気は最悪だ。",
+                choices: [
+                    { text: "登山を再開する", next: 's6_yocchin_incident', effect: (gs) => gs.yatakaCalmed = true }
+                ]
+            },
+            s5_yataka_distance: {
+                text: "俺たちはYたかから距離を置いた。彼はしばらく奇声を発していたが、やがて地面にうずくまり、動かなくなった。エディマーシーが近づき、「死んでる…わけじゃないな。気絶しただけか」と冷静に告げる。俺たちは彼を担いで進むことになった。最悪の足手まといだ。",
+                choices: [
+                    { text: "登山を再開する", next: 's6_yocchin_incident' }
+                ]
+            },
+            s5_yataka_drug: {
+                text: "俺はのぶんに目配せし、Yたかの口に薬を捩じ込んだ。数分後、彼は嘘のように落ち着きを取り戻した。「…助かった」。しかし、俺の行動を見ていたちばぶと、かとぱんの視線が冷たい。「お前、なんでそんなもの…」。",
+                choices: [
+                    { text: "「偶然見つけただけだ」と嘘をつく", next: 's6_yocchin_incident', effect: (gs) => { gs.yatakaCalmed = true; gs.distrustLevel += 2; } }
+                ]
+            },
+            s5_yataka_steal: {
+                text: "俺は薬を自分のポケットに隠した。Yたかは皆に押さえつけられ、やがて疲れて気絶した。俺たちは彼を担いで進むことになった。これで一つ、交渉のカードを手に入れた気分だった。",
+                choices: [
+                    { text: "登山を再開する", next: 's6_yocchin_incident' }
+                ]
+            },
+            
+            s6_yocchin_incident: {
+                text: "重い空気の中、登山を再開して一時間ほど経った頃。よっちんが登山道を外れた獣道を指差して叫んだ。「こっちの方が近道じゃね！？俺、天才！」",
+                choices: [
+                    { text: "「危ないからやめろ」と止める", next: 's7_yocchin_stop' },
+                    { text: "「面白そうだな」と乗っかる", next: 's7_yocchin_follow' }
+                ]
+            },
+            
+            s7_yocchin_stop: {
+                text: "「馬鹿野郎、遭難するぞ」。俺が止めると、よっちんは「ちぇー」とつまらなそうに唇を尖らせた。その時、彼の背後から、誰かの手が伸びるのが見えた。ドンッ。鈍い音と共に、よっちんの体が前のめりに倒れ、崖下へと転がり落ちていく。",
+                choices: [
+                    { text: "誰が押したか見えたか？", next: 's8_yocchin_fall', effect: (gs) => gs.yocchinRoute = 'stop' }
+                ]
+            },
+            s7_yocchin_follow: {
+                text: "「いいじゃん、行ってみようぜ」。俺がそう言うと、よっちんは嬉しそうに獣道へ駆け出した。数人がそれに続く。しかし、道はすぐにぬかるみ、急な斜面になった。先頭を走っていたよっちんが足を滑らせる。「うわっ！？」彼の体は為す術もなく、崖下へ消えていった。",
+                choices: [
+                    { text: "…事故、だよな？", next: 's8_yocchin_fall', effect: (gs) => gs.yocchinRoute = 'follow' }
+                ]
+            },
+            s8_yocchin_fall: {
+                text: "悲鳴すら聞こえない。静寂が支配する。デブコーンが「よ、よっちーん！」と叫ぶが、返事はない。崖下を覗き込むが、霧が深くて何も見えない。「…死んだのか？」「…事故だよな？」皆が顔を見合わせる。しかし、誰の目にも疑いの色が浮かんでいた。",
+                choices: [
+                    { text: "捜索を提案する", next: 's9_yocchin_search' },
+                    { text: "「進むしかない」と非情に告げる", next: 's9_yocchin_proceed' }
+                ],
+                effect: (gs) => gs.survivors = gs.survivors.filter(name => name !== 'よっちん')
+            },
+
+            s9_yocchin_search: {
+                text: "「探すべきだ！」俺が言うと、ゆっきんが「無理だ、この崖は降りられない。二次災害になるだけだ」と冷静に制した。彼の言う通りだった。だが、このまま見捨てるのか？",
+                choices: [
+                    { text: "…彼の言う通りだ", next: 's10_hut' }
+                ]
+            },
+            s9_yocchin_proceed: {
+                text: "「進むしかない。彼のために、俺たちは頂上を目指すべきだ」。俺は敢えてそう言った。何人かが俺を睨みつける。特にデブコーンの目は憎しみに満ちていた。…まあ、いい。どうせ、もう元には戻れないのだから。",
+                choices: [
+                    { text: "先を急ぐ", next: 's10_hut', effect: (gs) => gs.distrustLevel += 1 }
+                ]
+            },
+            
+            // --- 中盤 ---
+            s10_hut: {
+                text: "よっちんの一件で、完全に亀裂が入った。疑心暗鬼の中、俺たちは七合目の山小屋にたどり着いた。疲労と精神的ストレスはピークに達している。小屋の中で、皆無言で荷物を下ろす。",
+                choices: [
+                    { text: "一人になりたい", next: 's11_alone' },
+                    { text: "誰かと話す", next: 's11_talk' }
+                ]
+            },
+            s11_alone: {
+                text: "俺は小屋の隅で壁に向かって座った。誰も信用できない。いや、もとから信用などしていなかったが。背後でひそひそと話す声が聞こえる。俺の噂をしているのか、それとも次のターゲットを決めているのか…。",
+                choices: [
+                    { text: "聞き耳を立てる", next: 's12_eavesdrop' },
+                    { text: "無視して休む", next: 's12_rest' }
+                ]
+            },
+            s11_talk: {
+                text: "一番まともに見えたみっきんに近づいた。「なあ、みっきん。どう思う？」「…事故だと思いたいよ。でも…」。みっきんは言葉を濁す。「今はとにかく休もう。夜は冷える。体力を温存しないと」。彼の言葉は正論だったが、どこか空々しく聞こえた。",
+                choices: [
+                    { text: "彼の言う通りにする", next: 's12_rest' }
+                ]
+            },
+
+            s12_eavesdrop: {
+                text: "声の主はかとぱんとちばぶだ。「…あいつ、絶対何か知ってる」「Yたかの件も怪しいよな…」。明らかに俺のことだ。面倒なことになった。疑いの目は、時として牙を剥く。",
+                choices: [
+                    { text: "…面倒だ", next: 's13_night' }
+                ]
+            },
+            s12_rest: {
+                text: "俺は目を閉じ、浅い眠りにつこうとした。仲間たちの息遣い、衣擦れの音、その全てが神経に障る。ここは安全な場所ではない。誰もが敵になりうる戦場だ。",
+                choices: [
+                    { text: "…眠れない", next: 's13_night' }
+                ]
+            },
+            
+            s13_night: {
+                text: "夜が更け、外は嵐になった。風が小屋を揺らす。その時、デブコーンが立ち上がった。「…食料が、ない」。彼のザックが開けられ、中身が空になっていた。「誰だ！俺の食料を盗んだのは！」",
+                choices: [
+                    { text: "自分の食料を少し分ける", next: 's14_share_food' },
+                    { text: "「俺じゃない」とだけ言う", next: 's14_deny' },
+                    { text: "犯人探しを提案する", next: 's14_search_thief' }
+                ]
+            },
+
+            s14_share_food: {
+                text: "「落ち着けよ、デブコーン。俺のを少しやる」。俺が差し出すと、彼は一瞬安堵の表情を浮かべたが、すぐに「…お前が盗んで、恩を売ろうとしてるんじゃないだろうな」と疑いの目を向けた。善意すら、ここでは毒になる。",
+                choices: [
+                    { text: "…黙って食料を渡す", next: 's15_debucorn_leaves', effect: (gs) => gs.distrustLevel -= 1 }
+                ]
+            },
+            s14_deny: {
+                text: "「俺じゃない」。俺は短く答えた。デブコーンはメンバー一人一人の顔を睨みつける。「誰なんだよ！出てこい！」。彼の怒声が嵐の音にかき消される。",
+                choices: [
+                    { text: "…うんざりだ", next: 's15_debucorn_leaves' }
+                ]
+            },
+            s14_search_thief: {
+                text: "「犯人を探そう。全員の荷物を調べるべきだ」。俺の提案に、数人が同意した。しかし、かとぱんが「そんなことしてどうなる！もう誰も信じられない！」と叫び、荷物検査は拒否された。不信は頂点に達していた。",
+                choices: [
+                    { text: "…もう打つ手なしか", next: 's15_debucorn_leaves', effect: (gs) => gs.distrustLevel += 1 }
+                ]
+            },
+            
+            s15_debucorn_leaves: {
+                text: "「もういい！俺は一人で頭を冷やす！」。そう叫んで、デブコーンは嵐の中へ飛び出していった。「おい、待て！」のぶんが止めようとしたが、間に合わなかった。扉が閉まると、小屋は再び静寂に包まれた。",
+                choices: [
+                    { text: "しばらくして探しに行く", next: 's16_search_debucorn' },
+                    { text: "放っておく", next: 's16_leave_debucorn' }
+                ]
+            },
+            s16_search_debucorn: {
+                text: "30分経ってもデブコーンは戻らない。俺は懐中電灯を手に、嵐の中へ出た。風雨が体に叩きつける。小屋から少し離れた岩陰で、彼を見つけた。うつ伏せに倒れている。後頭部から血が流れていた。…誰かに、やられたのか？",
+                choices: [
+                    { text: "脈を確かめる", next: 's17_check_pulse', effect: (gs) => gs.foundDebucorn = true }
+                ]
+            },
+            s16_leave_debucorn: {
+                text: "誰もデブコーンを追いかけなかった。嵐の中に出ていく方が悪い。自己責任だ。俺たちは夜が明けるのを待った。…朝になっても、彼が戻ってくることはなかった。",
+                choices: [
+                    { text: "夜明けを待つ", next: 's18_morning' }
+                ]
+            },
+            s17_check_pulse: {
+                text: "首筋に手を当てる。…脈がない。死んでいる。俺が愕然としていると、背後から声がした。「…やっぱり、お前だったのか」。振り返ると、エディマーシーが立っていた。その手には、血の付いた石が握られていた。",
+                choices: [
+                    { text: "「違う、俺じゃない！」", next: 'gameover_eddie' },
+                    { text: "「お前こそ、何を…」", next: 'gameover_eddie' }
+                ]
+            },
+            gameover_eddie: {
+                text: "何を言っても無駄だった。エディマーシーは「仲間を殺す奴は、ここで死ぬべきだ」と呟き、石を振り上げた。君の意識は、富士の冷たい闇に消えた…\n\nGAME OVER",
+                choices: [
+                    { text: "最初からやり直す", next: 'start' }
+                ]
+            },
+            
+            // --- 終盤 ---
+            s18_morning: {
+                text: "嵐は過ぎ去り、静かな朝が来た。デブコーンは戻らない。生存者は減り、皆の顔には疲労と恐怖が刻まれている。みっきりが「…行こう。頂上は、もうすぐだ」と力なく言った。",
+                choices: [
+                    { text: "無言で頷く", next: 's19_final_climb' }
+                ],
+                condition: (gs) => !gs.foundDebucorn,
+                effect: (gs) => gs.survivors = gs.survivors.filter(name => name !== 'デブコーン')
+            },
+
+            s19_final_climb: {
+                text: "九合目を過ぎ、山頂が見えてきた。空気が極端に薄い。一歩進むごとに心臓が悲鳴をあげる。その時、かとぱんが突然立ち止まり、震える指でYたかを指差した。「…お前だろ！よっちんもデブコーンも、お前がやったんだ！」",
+                choices: [
+                    { text: "かとぱんを止める", next: 's20_stop_katopan' },
+                    { text: "Yたかの出方を見る", next: 's20_watch_yataka' }
+                ],
+                effect: (gs) => gs.katopanPanic = true
+            },
+            
+            s20_stop_katopan: {
+                text: "「落ち着け、かとぱん！証拠もないのに！」俺が叫ぶと、かとぱんは「うるさい！お前もグルなんだろ！」と矛先を俺に向けてきた。彼の目は完全に正気を失っている。Yたかがニヤリと笑った。「…そうだよ。俺がやった。…なんて言ったら、信じるか？」",
+                choices: [
+                    { text: "Yたかを問い詰める", next: 's21_confront_yataka' },
+                    { text: "かとぱんの暴走を力ずくで止める", next: 's21_stop_katopan_force' }
+                ]
+            },
+            s20_watch_yataka: {
+                text: "俺は黙って状況を見守った。Yたかはかとぱんの剣幕に、最初は驚いていたが、やがて不気味に笑い始めた。「…面白い冗談だな。俺が犯人？証拠は？」その挑発的な態度に、かとぱんは逆上し、掴みかかろうとする。",
+                choices: [
+                    { text: "二人を引き離す", next: 's21_stop_katopan_force' },
+                    { text: "まだ様子を見る", next: 'gameover_inaction' }
+                ]
+            },
+            gameover_inaction: {
+                text: "君が傍観している間に、逆上したかとぱんはYたかを突き飛ばした。Yたかはバランスを崩し、崖へと落ちていく。その光景に我に返ったかとぱんもまた、「ああ…」と呻きながら自ら身を投げた。連鎖する死。君はあまりの惨状に立ち尽くすことしかできなかった…\n\nGAME OVER",
+                choices: [
+                    { text: "最初からやり直す", next: 'start' }
+                ]
+            },
+
+            s21_confront_yataka: {
+                text: "「ふざけるな、Yたか！本当にお前なのか！？」俺が問い詰めると、彼は肩をすくめた。「さあな？だが、お前が俺の薬を盗んでなければ、こんなことには…」。Yたかがそう言った瞬間、彼の背後にいた誰かが、彼の背中を強く押した。",
+                choices: [
+                    { text: "…！", next: 's22_yataka_fall' }
+                ],
+                condition: (gs) => gs.hasOwnProperty('stolenDrug') // s5_yataka_stealを通ったか
+            },
+            s21_stop_katopan_force: {
+                text: "俺はかとぱんとYたかの間に割って入った。もみ合いになる。その混乱の中、誰かがYたかを突き飛ばした。Yたかは短い悲鳴をあげ、崖下へ消えた。かとぱんが呆然と立ち尽くす。「…お、俺じゃない…」。",
+                choices: [
+                    { text: "…一体誰が？", next: 's22_yataka_fall' }
+                ]
+            },
+            s22_yataka_fall: {
+                text: "Yたかが落ちていった。生存者はさらに減る。かとぱんは「俺じゃない…俺じゃない…」と呟き続けている。ちばぶは青ざめ、のぶんは唇を噛み締めている。ゆっきんは冷静に崖下を見ている。エディマーシーは表情を変えない。…そして、みっきんは悲しそうな顔でこちらを見ている。",
+                choices: [
+                    { text: "もう、誰も信じられない…", next: 's23_final_suspect' }
+                ],
+                effect: (gs) => {
+                    gs.survivors = gs.survivors.filter(name => name !== 'Yたか');
+                    gs.finalChoiceReady = true;
+                }
+            },
+            s23_final_suspect: {
+                text: "山頂は目前だ。しかし、この中に殺人鬼がいる。よっちんを突き落とし、デブコーンを殺し（あるいは見殺しにし）、Yたかを突き落とした犯人が。俺は生き残ったメンバーの顔を一人ずつ見た。誰だ。誰が、この惨劇を引き起こしたんだ？",
+                choices: [
+                    { text: "犯人はお前だ、かとぱん！", next: 'final_katopan' },
+                    { text: "犯人はお前だ、エディマーシー！", next: 'final_eddie' },
+                    { text: "犯人はお前だ、みっきん！", next: 'final_mikkin' },
+                    { text: "犯人は…俺が知らない誰かだ", next: 'final_unknown' }
+                ]
+            },
+
+            // --- 最終選択と結末 ---
+            final_katopan: {
+                text: "「かとぱん、お前だな」。俺が言うと、彼は錯乱したように笑い出した。「そうだよ！俺だよ！みんな死ねばいいんだ！」。彼はナイフを取り出し、襲いかかってきた。君は抵抗むなしく、その刃に倒れた…\n\nGAME OVER",
+                choices: [
+                    { text: "最初からやり直す", next: 'start' }
+                ]
+            },
+            final_eddie: {
+                text: "「エディマーシー、お前が犯人だ」。俺が指差すと、彼は無表情のまま首を横に振った。「…残念だ」。そう呟いた彼の背後から、みっきんが忍び寄り、君の首筋に強い衝撃を与えた。意識が遠のいていく…\n\nGAME OVER",
+                choices: [
+                    { text: "最初からやり直す", next: 'start' }
+                ]
+            },
+            final_unknown: {
+                text: "「わからない…」。俺がそう呟いた瞬間、背中に衝撃が走った。振り返ると、そこには優しげな笑みを浮かべたみっきんがいた。「そうだよね。わからないよね」。彼の持つ岩が、再び振り下ろされる…\n\nGAME OVER",
+                choices: [
+                    { text: "最初からやり直す", next: 'start' }
+                ]
+            },
+
+            final_mikkin: {
+                text: "「…みっきん。お前なんだろ」。俺の言葉に、今までリーダーとして皆をまとめてきた彼の顔から、表情がすっと消えた。「…あは。なんでわかったの？つまんないな」。彼は屈託なく笑った。「よっちんは邪魔だったし、デブコーンはうるさかった。Yたかは…まあ、面白かったけど飽きたんだ」。",
+                choices: [
+                    { text: "「ふざけるな！」", next: 'clear_confrontation' }
+                ],
+                condition: (gs) => gs.distrustLevel < 3 // 不信感が高いと、誰も助けてくれない
+            },
+
+            clear_confrontation: {
+                text: "みっきんが隠し持っていたアイスピックを手に、こちらへ向かってくる。「君は賢いから、生かしてはおけないな」。絶体絶命。その時、俺の隣にいたのぶんが、みっきんに飛びかかった。「行けっ！」",
+                choices: [
+                    { text: "のぶんと一緒に戦う", next: 'gameover_fight' },
+                    { text: "構わず山頂へ走る", next: 'clear' }
+                ]
+            },
+            gameover_fight: {
+                 text: "君はのぶんと共にみっきんに立ち向かった。しかし、狂気に満ちた犯人は常人ではない。君たちは返り討ちにあい、富士の山頂を目前にして命を落とした…\n\nGAME OVER",
+                choices: [
+                    { text: "最初からやり直す", next: 'start' }
+                ]
+            },
+
+            // --- クリア ---
+            clear: {
+                text: "俺はのぶんの叫びを背に、山頂へと走った。背後で争う声が聞こえたが、振り返らなかった。そして、ついに辿り着いた。山頂だ。東の空が、ゆっくりと白んでいく。地平線から、神々しい光が差し込んできた。御来光だ。",
+                choices: [
+                    { text: "…エピローグへ", next: 'epilogue_good' }
+                ]
+            },
+
+            // --- エピローグ ---
+            epilogue_good: {
+                text: "俺は、生き残った。下山後、警察の聴取を受けたが、生存者の証言は食い違い、結局一連の事件は「連続遭難事故」として処理された。犯人だったみっきんも、のぶんと共に崖から転落したとされた。…生き残った幼馴染たちと、もう二度と会うことはないだろう。日常に戻った俺は、時々、富士山の方角を見る。あの御来光の美しさと、仲間たちの最期の顔を、俺は一生忘れることはない。\n\nGAME CLEAR",
+                choices: [
+                    { text: "タイトルに戻る", next: 'start' }
+                ]
+            }
+        };
+
+        function startGame() {
+            titleScreen.style.display = 'none';
+            gameScreen.style.display = 'flex';
+            // ゲーム状態をリセット
+            gameState = {
+                knowsYatakaIsAddict: false,
+                yatakaCalmed: false,
+                yocchinRoute: null,
+                distrustLevel: 0,
+                survivors: ['おちぷー', 'ちばぶ', 'ゆっきん', 'デブコーン', 'Yたか', 'のぶん', 'よっちん', 'かとぱん', 'みっきん', 'エディマーシー'],
+                katopanPanic: false,
+                foundDebucorn: false,
+                finalChoiceReady: false
+            };
+            showScene('start');
+        }
+
+        function showScene(sceneId) {
+            currentSceneId = sceneId;
+            const scene = scenes[sceneId];
+            if (!scene) {
+                console.error(`Scene with id ${sceneId} not found.`);
+                return;
+            }
+
+            // エフェクトの実行
+            if (scene.effect) {
+                scene.effect(gameState);
+            }
+            
+            // テキストをタイプライター風に表示
+            typeWriter(scene.text, () => {
+                // 選択肢を表示
+                displayChoices(scene.choices);
+            });
+        }
+
+        function typeWriter(text, callback) {
+            isTyping = true;
+            textDisplay.innerHTML = '';
+            choiceArea.innerHTML = ''; // タイプ中は選択肢を消す
+
+            let i = 0;
+            const speed = 10; // 表示速度(ms)
+
+            const content = document.createElement('span');
+            textDisplay.appendChild(content);
+
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            textDisplay.appendChild(cursor);
+
+            function type() {
+                if (i < text.length) {
+                    content.innerHTML += text.charAt(i).replace(/\n/g, '<br>');
+                    i++;
+                    setTimeout(type, speed);
+                } else {
+                    cursor.style.display = 'none'; // 表示完了でカーソルを消す
+                    isTyping = false;
+                    if (callback) {
+                        callback();
+                    }
+                }
+            }
+            type();
+        }
+
+        function displayChoices(choices) {
+            choiceArea.innerHTML = '';
+            if (!choices) return;
+
+            choices.forEach(choice => {
+                // 条件付き選択肢のチェック
+                if (choice.condition && !choice.condition(gameState)) {
+                    return; // 条件を満たさなければ表示しない
+                }
+
+                const button = document.createElement('button');
+                button.innerHTML = choice.text;
+                button.className = 'choice-button';
+                button.addEventListener('click', () => {
+                    if (isTyping) return;
+                    selectChoice(choice);
+                });
+                choiceArea.appendChild(button);
+            });
+        }
+        
+        function selectChoice(choice) {
+            if (choice.effect) {
+                choice.effect(gameState);
+            }
+            showScene(choice.next);
+        }
+
+        titleScreen.addEventListener('click', startGame);
+    });
+    </script>
+
+</body>
+</html>
