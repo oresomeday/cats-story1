@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>富士、狂気、頂 -煉獄篇-</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --text-color: #e0e0e0;
+            --accent-color: #b71c1c;
+            --choice-bg-color: #1a1a1a;
+            --choice-border-color: #333333;
+            --safe-area-top: 1cm;
+            --safe-area-bottom: 1cm;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Hiragino Kaku Gothic ProN', 'ヒラギノ角ゴ ProN W3', Meiryo, メイリオ, Osaka, 'MS PGothic', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        #game-wrapper {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-color);
+            box-sizing: border-box;
+        }
+
+        #game-container {
+            flex-grow: 1;
+            padding: var(--safe-area-top) 20px var(--safe-area-bottom) 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            overflow-y: auto;
+            scrollbar-width: none; /* Firefox */
+        }
+        #game-container::-webkit-scrollbar {
+            display: none; /* Chrome, Safari */
+        }
+
+
+        #title-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            height: 100%;
+        }
+
+        #title-screen h1 {
+            font-size: 2.5rem;
+            color: var(--accent-color);
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 8px rgba(183,28,28,0.7);
+        }
+        
+        #title-screen h2 {
+            font-size: 1.2rem;
+            color: #ccc;
+            margin-bottom: 30px;
+            font-weight: normal;
+        }
+
+        #title-screen p {
+            font-size: 1rem;
+            margin-bottom: 40px;
+        }
+
+        #start-button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border: 1px solid var(--accent-color);
+            background-color: transparent;
+            color: var(--accent-color);
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+        }
+        
+        #start-button:hover {
+            background-color: var(--accent-color);
+            color: var(--text-color);
+        }
+
+        #game-content {
+            display: none;
+            width: 100%;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        #text-area {
+            margin-bottom: 30px;
+            line-height: 1.9;
+            font-size: 1.1rem;
+            white-space: pre-wrap;
+        }
+        
+        .character-name {
+            font-weight: bold;
+            color: #bbbbbb;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        #choices-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .choice {
+            padding: 16px;
+            border: 1px solid var(--choice-border-color);
+            background-color: var(--choice-bg-color);
+            cursor: pointer;
+            text-align: center;
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+            font-size: 1rem;
+            color: #a0a0a0;
+        }
+
+        .choice:hover {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+            color: var(--text-color);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="game-container">
+            <div id="title-screen">
+                <h1>富士、狂気、頂</h1>
+                <h2>-煉獄篇-</h2>
+                <p>―頂は地獄の入り口―</p>
+                <button id="start-button">登山を開始する</button>
+            </div>
+            <div id="game-content">
+                <div id="text-area"></div>
+                <div id="choices-area"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- ゲームデータ ---
+const gameData = {
+    // --- 状態管理 ---
+    state: {
+        survivors: {
+            ochipu: true, chibabu: true, yukkin: true, debucone: true, 
+            y_taka: true, nobun: true, yotchin: true, katopan: true, mikkin: true
+        },
+        inventory: [],
+        knowledge: {
+            eddie_left: false,
+            mikkin_katopan_signal: false,
+            yotchin_fall_is_murder: 0,
+            debucone_poison_method: 0,
+            y_taka_berserk_cause: null,
+            nobun_is_watchful: false,
+            chibabu_herb_info: false
+        },
+        trust: {
+            ochipu: 0, chibabu: 0, yukkin: 0, nobun: 0, katopan: 0, mikkin: 0
+        },
+        player: {
+            injured: false,
+            poisoned: 0, // 毒の段階
+            suspicion: 0 // 他の全員からの疑惑ポイント
+        }
+    },
+
+    // --- シナリオデータ ---
+    scenes: {
+        // --- 序盤：五合目 ---
+        'start': {
+            text: `エディマーシーの運転するワゴン車が、富士山五合目の駐車場に滑り込む。
+「へいへい到着だぜベイビーズ！心ゆくまで楽しんできな！俺は麓の温泉で待ってるぜ！」
+ハイテンションなエディマーシーに見送られ、俺たち10人の幼馴染は、雲海を見下ろす登山口に立った。`,
+            choices: [
+                { text: '「じゃあな、エディ！」と手を振る', next: 's01_gate' },
+                { text: '（…本当に帰るのか？）車が見えなくなるまで見送る', next: 's01_gate_suspicious' }
+            ]
+        },
+        's01_gate_suspicious': {
+            onEnter: (s) => { s.knowledge.eddie_left = true; },
+            text: `俺は、エディマーシーの車が駐車場を出て、麓へ下っていくのを完全に見届けた。これで、下山するまで助けは来ない。完全に閉じられた空間だ。この情報を覚えておこう。`,
+            choices: [
+                { text: '皆の元へ戻る', next: 's01_gate_main' }
+            ]
+        },
+        's01_gate': {
+            text: `エディマーシーの車はすぐに見えなくなった。まあ、あいつが嘘を言うことはないだろう。`,
+            choices: [
+                { text: '皆の元へ戻る', next: 's01_gate_main' }
+            ]
+        },
+        's01_gate_main': {
+            text: `「よーし、登るか！」ムードメーカーのゆっきんが声を上げる。
+「待て。まずは準備運動と装備の確認だ」博識なちばぶが皆を制した。その横で、Yたかは既に焦点が合っておらず、デブコーンは何やら黒い塊をこねている。
+その時、俺は見てしまった。みっきんが、やぶ医者のかとぱんにだけ分かるように、微かに頷いたのを。かとぱんも、口の端を歪めて応えたように見えた。`,
+            choices: [
+                { text: '（気のせいだろう）準備運動に集中する', next: 's02_warmup' },
+                { text: 'みっきんに声をかける', next: 's01_talk_mikkin' },
+                { text: 'かとぱんに声をかける', next: 's01_talk_katopan' }
+            ]
+        },
+        's01_talk_mikkin': {
+            onEnter: (s) => { s.trust.mikkin -= 1; s.knowledge.mikkin_katopan_signal = true; },
+            text: `「みっきん、今かとぱんと何か…」
+<span class="character-name">みっきん</span>「え？何のこと？私、かとぱんの顔色が悪かったから、心配してただけだよ。ねえ？」
+みっきんはかとぱんに同意を求める。
+<span class="character-name">かとぱん</span>「ああ、感謝するよ。君も、人のことより自分の心配をしたらどうだね？」
+二人の連携は完璧に見えた。`,
+            choices: [
+                { text: '（深入りは危険か…）準備運動をする', next: 's02_warmup' }
+            ]
+        },
+        's01_talk_katopan': {
+            onEnter: (s) => { s.trust.katopan -= 1; s.knowledge.mikkin_katopan_signal = true; s.player.suspicion += 1; },
+            text: `「かとぱん、今みっきんと何か合図してなかったか？」
+<span class="character-name">かとぱん</span>「ほう…観察眼があるな。だが、勘繰りは身を滅ぼすぞ。それより、君は少し血圧が高いようだ。私の特製ハーブティーを飲むかね？」
+かとぱんは不気味に笑い、水筒を差し出してきた。`,
+            choices: [
+                { text: '飲む', next: 's01_drink_tea' },
+                { text: '断る', next: 's01_refuse_tea' }
+            ]
+        },
+        's01_drink_tea': {
+            onEnter: (s) => { s.player.poisoned = 1; },
+            text: `俺は警戒しつつも一口飲んだ。苦い。そして、指先が少し痺れるような感覚がした。
+<span class="character-name">かとぱん</span>「…クク、体にいい薬は口に苦い、と言うだろう？」
+かとぱんは満足げに水筒をしまった。`,
+            gameOver: 'GAME OVER. 開始5分で毒殺。やぶ医者の善意を信じた君の負けだ。'
+        },
+        's01_refuse_tea': {
+            text: `「いや、遠慮しておく」
+俺が断ると、かとぱんはつまらなそうに鼻を鳴らした。
+<span class="character-name">かとぱん</span>「そうか。まあいい」`,
+            choices: [
+                { text: '準備運動をする', next: 's02_warmup' }
+            ]
+        },
+
+        // --- 六合目：最初の事件 ---
+        's02_warmup': {
+            text: `準備運動を終え、俺たちは登山を開始した。六合目へ向かう道中、詐欺師のよっちんが妙に馴れ馴れしく話しかけてきた。
+<span class="character-name">よっちん</span>「なあ、この登山さ、実はすごいお宝が隠されてるって噂、知ってる？頂上まで行けば、人生変わるぜ。俺に協力すれば、分け前をやるよ」`,
+            choices: [
+                { text: '話に乗る', next: 's02_trust_yotchin' },
+                { text: '無視する', next: 's02_ignore_yotchin' }
+            ]
+        },
+        's02_trust_yotchin': {
+            onEnter: (s) => { s.trust.yotchin += 1; },
+            text: `「面白そうだな。詳しく聞かせてくれ」
+<span class="character-name">よっちん</span>「話がわかるな！いいか、これは…」
+よっちんが声を潜めた、その時。彼の背後、少し上方の岩陰で、誰かが素早く身を隠したのが見えた。`,
+            choices: [
+                { text: '（誰だ？）気にしつつ話を聞く', next: 's03_fall_event' }
+            ]
+        },
+        's02_ignore_yotchin': {
+            text: `「くだらない。お前の話はいつも嘘ばかりだ」
+俺が突き放すと、よっちんは顔をひきつらせた。
+<span class="character-name">よっちん</span>「…へえ、そうかい。後で後悔するなよ」
+よっちんは吐き捨てると、先に行ってしまった。`,
+            choices: [
+                { text: '先へ進む', next: 's03_fall_event' }
+            ]
+        },
+        's03_fall_event': {
+            text: `六合目を過ぎ、道が険しくなったところで、先頭を歩いていたよっちんの短い悲鳴が響いた。
+「うわっ！」
+見ると、よっちんがバランスを崩し、崖下へと転落していく。`,
+            choices: [
+                { text: 'すぐに崖下を覗き込む', next: 's03_look_down' },
+                { text: '周囲の皆の反応を見る', next: 's03_watch_reactions' }
+            ]
+        },
+        's03_look_down': {
+            onEnter: (s) => { s.survivors.yotchin = false; },
+            text: `俺は慌てて崖に駆け寄り、下を覗き込んだ。よっちんの姿は、霧に遮られてもう見えない。
+その時、背後から強い力で押された！`,
+            gameOver: 'GAME OVER. 無防備に背中を見せたな。崖下は仲間でいっぱいだ。'
+        },
+        's03_watch_reactions': {
+            onEnter: (s) => { s.survivors.yotchin = false; s.knowledge.yotchin_fall_is_murder += 1; },
+            text: `俺は崖には近づかず、皆の反応を観察した。
+おちぷーは顔面蒼白。ゆっきんは「マジかよ…」と呟き、Yたかは上の空。デブコーンは無表情。
+だが、みっきんは悲しむフリをしながら、かとぱんと一瞬だけ視線を交わした。そして釣り人の、のぶんは、崖の上方を鋭い目つきで睨んでいた。彼は何かを見ていたのかもしれない。`,
+            choices: [
+                { text: 'のぶんに声をかける', next: 's03_talk_nobun' },
+                { text: 'かとぱんに「事故だよな？」と聞く', next: 's03_ask_katopan' }
+            ]
+        },
+        's03_talk_nobun': {
+            onEnter: (s) => { s.knowledge.nobun_is_watchful = true; s.trust.nobun += 1; },
+            text: `「のぶん、今、何か見えたか？」
+<span class="character-name">のぶん</span>「…さあな。ただの気のせいかもしれん。だが…岩を蹴るような音が聞こえた気もする」
+のぶんはそれ以上は語らなかったが、俺への警戒を少し解いたように見えた。`,
+            choices: [
+                { text: '（これは事故じゃない…）', next: 's04_climb_to_7' }
+            ]
+        },
+        's03_ask_katopan': {
+            onEnter: (s) => { s.trust.katopan -= 2; s.player.suspicion += 2; },
+            text: `「なあ、かとぱん。これは事故だよな？」
+俺が探るように言うと、かとぱんはにやりと笑った。
+<span class="character-name">かとぱん</span>「もちろん事故だとも。高山ではよくあることだ。彼の心臓がもたなかったのかもしれないな。ああ、解剖して調べてみたいものだ」
+その目は、純粋な知的好奇心と狂気に満ちていた。`,
+            choices: [
+                { text: '（こいつも怪しい…）', next: 's04_climb_to_7' }
+            ]
+        },
+
+        // --- 七合目：山小屋の夜 ---
+        's04_climb_to_7': {
+            text: `一人目の犠牲者を出し、疑心暗鬼に満ちたまま、俺たちは七合目の山小屋にたどり着いた。
+夕食の時間、デブコーンが鍋いっぱいのシチューを振る舞った。
+<span class="character-name">デブコーン</span>「特製きのこシチューだよ。精がつくから、たくさんお食べ」
+鍋からは、甘いような、薬臭いような、奇妙な匂いが立ち上っている。`,
+            choices: [
+                { text: '食べる', next: 's04_eat_stew' },
+                { text: '「腹の調子が悪い」と断る', next: 's04_refuse_stew' },
+                { text: 'ちばぶにきのこについて尋ねる', next: 's04_ask_chibabu' }
+            ]
+        },
+        's04_ask_chibabu': {
+            onEnter: (s) => { s.knowledge.chibabu_herb_info = true; s.trust.chibabu += 1; },
+            text: `「ちばぶ、このきのこ、何てやつか知ってるか？」
+ちばぶはシチューを覗き込み、眉をひそめた。
+<span class="character-name">ちばぶ</span>「…これはワライタケに似ているな。幻覚作用がある。だが、一緒に煮込まれているこの葉…ベラドンナだ。少量なら鎮痛作用があるが、量を間違えれば死に至る猛毒だ。デブコーンの奴、何を考えているんだ…」`,
+            choices: [
+                { text: '（やはり食えない）断る', next: 's04_refuse_stew' },
+                { text: '（情報を得た上で）少量だけ食べる', next: 's04_eat_stew_small' }
+            ]
+        },
+        's04_eat_stew': {
+            text: `俺は覚悟を決めてシチューを口にした。味は悪くない。だが、食べ進めるうちに、視界がぐにゃりと歪み始めた。皆の顔が悪魔のように見える。
+<span class="character-name">みっきん</span>「あはは、面白い顔！」
+<span class="character-name">かとぱん</span>「素晴らしい反応データだ…」
+笑い声が頭に響く。俺はそのまま意識を失った。`,
+            gameOver: 'GAME OVER. 毒料理人のフルコースを堪能した。幻覚の先は地獄だった。'
+        },
+        's04_refuse_stew': {
+            text: `俺が断ると、デブコーンは無表情で頷いた。
+<span class="character-name">デブコーン</span>「そうかい。もったいない」
+他のメンバーの何人かは、警戒しながらもシチューを食べている。ゆっきんやYたかは、特にがっついていた。`,
+            choices: [
+                { text: '夜になるのを待つ', next: 's05_night_event' }
+            ]
+        },
+        's04_eat_stew_small': {
+            onEnter: (s) => { s.player.poisoned += 1; },
+            text: `ちばぶの情報を元に、俺は具を避け、スープだけを少量飲んだ。体は少し火照るが、正気は保てている。
+<span class="character-name">デブコーン</span>「おや、お気に召さなかったかな？」
+デブコーンがじろりとこちらを見たが、俺は気づかないフリをした。`,
+            choices: [
+                { text: '夜になるのを待つ', next: 's05_night_event' }
+            ]
+        },
+        's05_night_event': {
+            text: `夜が更け、皆が寝静まった。シチューを食べた者は、うなされたり、奇妙な笑い声をあげたりしている。
+俺は息を殺し、状況を窺っていた。
+すると、二つの人影が音もなく動き出し、部屋の隅で何かを話し始めた。みっきんと、かとぱんだ。`,
+            choices: [
+                { text: '聞き耳を立てる', next: 's05_eavesdrop' },
+                { text: '寝たフリを続ける', next: 's05_feign_sleep' }
+            ]
+        },
+        's05_eavesdrop': {
+            text: `俺は壁際にじりじりと移動し、会話に耳を澄ませた。
+<span class="character-name">みっきん</span>「…コーンはもういい。期待外れだった」
+<span class="character-name">かとぱん</span>「…次のサンプルはYたかか、ゆっきんか。どちらも面白いデータが取れそうだ」
+<span class="character-name">みっきん</span>「その前に、うるさい知識人を黙らせようか…ちばぶのこと」
+<span class="character-name">かとぱん</span>「承知した。私の新しい薬を試そう…」
+ぞっとした。彼らは次のターゲットを決めている。`,
+            choices: [
+                { text: '（このままではちばぶが殺される！）', next: 's06_morning_dead_chibabu' }
+            ]
+        },
+        's05_feign_sleep': {
+            text: `下手に動けば殺される。俺は完全に寝たフリを続けた。
+二人はしばらく何かを話していたが、やがてそれぞれの寝床に戻っていった。何を話していたのかは分からない。だが、ろくな話でないことだけは確かだ。`,
+            choices: [
+                { text: '（朝を待つしかない…）', next: 's06_morning_dead' }
+            ]
+        },
+        's06_morning_dead': {
+            onEnter: (s) => { s.survivors.debucone = false; },
+            text: `朝、皆が目を覚ますと、デブコーンが冷たくなっていた。
+<span class="character-name">かとぱん</span>「私が診よう。…ふむ、自分のシチューの毒にやられたようだな。自業自得だ」
+かとぱんは淡々と告げた。誰もが疑心暗鬼だが、反論できない。デブコーンは、自らの料理で死んだ。そういうことに、なった。`,
+            choices: [
+                { text: '登山を再開する', next: 's07_climb_to_8' }
+            ]
+        },
+        's06_morning_dead_chibabu': {
+            onEnter: (s) => { s.survivors.debucone = false; s.survivors.chibabu = false; s.knowledge.debucone_poison_method = 2; },
+            text: `朝、皆が目を覚ますと、デブコーンとちばぶが冷たくなっていた。
+<span class="character-name">かとぱん</span>「私が診よう。…デブコーンは自らの毒、ちばぶは…おや、きのこアレルギーによるショック死かな？珍しいこともあるものだ」
+かとぱんの嘘は明白だった。俺は、みっきんと彼がちばぶを殺したことを知っている。だが、ここでそれを言えば、俺が次のターゲットだ。`,
+            choices: [
+                { text: '（今は黙っているしかない…）', next: 's07_climb_to_8' }
+            ]
+        },
+
+        // --- 八合目：狂気の加速 ---
+        's07_climb_to_8': {
+            text: `死体が二つ（あるいは三つ）になり、生存者たちの顔からは完全に色が消えていた。
+八合目への険しい岩場を登っていると、Yたかが突然叫びだした。
+<span class="character-name">Yたか</span>「虫だ！虫が這い回ってる！うわあああ！」
+完全に錯乱し、暴れ始めた。このままでは、他の誰かを巻き込んで滑落しかねない。`,
+            choices: [
+                { text: 'おちぷーに「お前が止めろ」とけしかける', next: 's07_push_ochipu' },
+                { text: 'のぶんと協力して取り押さえる', next: 's07_restrain_with_nobun' },
+                { text: 'かとぱんに任せる', next: 's07_leave_to_katopan' }
+            ]
+        },
+        's07_push_ochipu': {
+            text: `「おちぷー、お前ならできるだろ！」
+<span class="character-name">おちぷー</span>「む、無理だよ！俺を巻き込むな！」
+おちぷーは怯えて後ずさる。その時、暴れたYたかがおちぷーにぶつかった。
+「うわっ！」二人はもつれ合い、崖下へと消えていった。`,
+            onEnter: (s) => { s.survivors.ochipu = false; s.survivors.y_taka = false; },
+            gameOver: 'GAME OVER. 卑怯者に危険な役目を押し付けた結果、二人同時に失った。合理的だが、非情な選択だったな。'
+        },
+        's07_restrain_with_nobun': {
+            condition: (s) => s.trust.nobun > 0,
+            text: `「のぶん、手伝え！」
+俺とのぶんは連携し、暴れるYたかの手足を押さえつけた。
+<span class="character-name">のぶん</span>「…助かった。一人じゃ無理だった」
+のぶんは汗を拭う。この共同作業で、俺たちの間には奇妙な信頼関係が生まれた。`,
+            onEnter: (s) => { s.trust.nobun += 2; },
+            choices: [
+                { text: 'Yたかをどうするか？', next: 's07_y_taka_fate' }
+            ]
+        },
+        's07_leave_to_katopan': {
+            text: `「かとぱん、専門家だろ。何とかしてくれ」
+<span class="character-name">かとぱん</span>「仕方ないな。鎮静剤を打とう」
+かとぱんはYたかに注射を打った。Yたかは一瞬痙攣し、そしてぐったりと動かなくなった。
+<span class="character-name">かとぱん</span>「…おや、薬が効きすぎたようだ。まあ、静かになってよかったじゃないか」
+また一人、かとぱんの手によって「処理」された。`,
+            onEnter: (s) => { s.survivors.y_taka = false; },
+            choices: [
+                { text: '先へ進む', next: 's08_gambler' }
+            ]
+        },
+        's07_y_taka_fate': {
+            text: `取り押さえたはいいが、錯乱したYたかをこのまま連れて行くのは危険すぎる。
+<span class="character-name">のぶん</span>「…どうする？」`,
+            choices: [
+                { text: 'ここに置いていく', next: 's07_abandon_y_taka' },
+                { text: '気絶させて運ぶ', next: 's07_knockout_y_taka' }
+            ]
+        },
+        's07_abandon_y_taka': {
+            onEnter: (s) => { s.survivors.y_taka = false; },
+            text: `非情な決断だが、俺たちはYたかを岩陰に縛り付け、登山を続けることにした。
+「ごめん…ごめん…」と呟く彼の声を背に、俺たちは歩き出した。おそらく、彼はもう助からないだろう。`,
+            choices: [
+                { text: '先へ進む', next: 's08_gambler' }
+            ]
+        },
+        's07_knockout_y_taka': {
+            text: `俺はYたかの首筋に手刀を打ち込み、気絶させた。
+「俺が背負う」
+<span class="character-name">のぶん</span>「…正気か？だが、見殺しよりはマシか…」
+俺はYたかを背負い、再び歩き始めた。体力が大幅に削られる。`,
+            onEnter: (s) => { s.player.injured = true; },
+            choices: [
+                { text: '先へ進む', next: 's08_gambler' }
+            ]
+        },
+
+        's08_gambler': {
+            text: `八合目の山小屋を目前にして、ゆっきんがニヤニヤしながら皆を呼び止めた。
+<span class="character-name">ゆっきん</span>「なあ、つまんねえから賭けをしようぜ。ここから山小屋まで競争だ。ビリの奴は…夕食抜きってのはどうだ？」
+極限状況での、狂気の提案だった。`,
+            choices: [
+                { text: '「ふざけるな」と一蹴する', next: 's08_refuse_gamble' },
+                { text: '「面白い」と賭けに乗る', next: 's08_accept_gamble' },
+                { text: 'みっきんに「どう思う？」と尋ねる', next: 's08_ask_mikkin_gamble' }
+            ]
+        },
+        's08_refuse_gamble': {
+            text: `「馬鹿なことを言うな。今は協力するときだ」
+俺が言うと、ゆっきんはつまらなそうに舌打ちした。
+<span class="character-name">ゆっきん</span>「ちぇっ、ノリが悪いな。まあいいぜ」
+何事もなく、俺たちは山小屋に到着した。`,
+            choices: [
+                { text: '山小屋で休む', next: 's09_night_at_8' }
+            ]
+        },
+        's08_accept_gamble': {
+            onEnter: (s) => { s.trust.yukkin += 2; },
+            text: `「いいぜ、乗った！」
+俺が応じると、ゆっきんは嬉しそうに笑った。
+<span class="character-name">ゆっきん</span>「そうこなくっちゃ！」
+レースが始まった。俺は全速力で走り、なんとかビリは免れた。だが、体力を無駄に消耗してしまった。ビリになったおちぷーは、悔しそうに地面を蹴っている。`,
+            choices: [
+                { text: '山小屋で休む', next: 's09_night_at_8' }
+            ]
+        },
+        's08_ask_mikkin_gamble': {
+            onEnter: (s) => { s.trust.mikkin -= 2; },
+            text: `俺はみっきんに意見を求めた。
+<span class="character-name">みっきん</span>「…楽しそうじゃない。やってみれば？」
+彼女はにっこりと微笑んだ。その目は、俺たちが争うのを心底楽しみにしているように見えた。
+彼女の返事を聞いて、俺は賭けに乗る気が失せた。`,
+            choices: [
+                { text: '「やっぱりやめておく」', next: 's08_refuse_gamble' }
+            ]
+        },
+
+        // --- 九合目：最終局面 ---
+        's09_night_at_8': {
+            text: `八合目の山小屋。生存者はもう数えるほどしかいない。誰もが口を閉ざし、互いを警戒している。
+疲労困憊の俺は、壁にもたれて意識を失いかけた。
+その時、誰かが俺のポケットに何かをねじ込んできたのに気づいた。`,
+            choices: [
+                { text: 'すぐに相手を確認する', next: 's09_check_person' },
+                { text: '気づかないフリをして、後で確認する', next: 's09_check_item_later' }
+            ]
+        },
+        's09_check_person': {
+            text: `俺が目を開けると、そこにいたのはおちぷーだった。彼はビクッとして後ずさる。
+<span class="character-name">おちぷー</span>「ち、違うんだ！俺は何も…！」
+彼は何かを言おうとして、口ごもった。その時、小屋の隅にいたかとぱんが、鋭い視線でこちらを睨んでいるのに気づいた。`,
+            gameOver: 'GAME OVER. おちぷーはかとぱんに脅されていた。君が騒いだせいで、彼は口封じに殺され、君も「共犯者」として始末された。'
+        },
+        's09_check_item_later': {
+            text: `俺は寝たフリを続け、相手が立ち去ってから、そっとポケットの中身を確認した。
+入っていたのは、小さなメモ用紙だった。
+『カトパンがミッキンにクスリをわたしてた。オレは見た。タスケテ』
+おちぷーの震える字だった。彼は脅されている。そして、俺に助けを求めてきたのだ。`,
+            onEnter: (s) => { s.knowledge.debucone_poison_method = 3; s.trust.ochipu += 5; },
+            choices: [
+                { text: '（この情報は切り札になる）', next: 's10_climb_to_9' }
+            ]
+        },
+        
+        's10_climb_to_9': {
+            text: `山頂はもう目前だ。九合目の鳥居をくぐった時、最後の悲劇が起きる。
+ゆっきんが、突然かとぱんに掴みかかった。
+<span class="character-name">ゆっきん</span>「お前が犯人だろ！お前のせいでみんな！」
+<span class="character-name">かとぱん</span>「離せ！このチンピラが！」
+もみ合いになった二人は、バランスを崩し、崖際へと転がっていく！`,
+            choices: [
+                { text: '二人を助けようとする', next: 's10_help_both' },
+                { text: 'ゆっきんだけを助ける', next: 's10_help_yukkin' },
+                { text: 'かとぱんだけを助ける', next: 's10_help_katopan' },
+                { text: '見捨てる', next: 's10_abandon_both' }
+            ]
+        },
+        's10_help_both': {
+            text: `俺は二人を助けようと手を伸ばした。しかし、二人の体重を支えきれず、俺も一緒に崖下へ引きずり込まれた。`,
+            gameOver: 'GAME OVER. 無謀なヒロイズムは、ただ死人を増やすだけだ。'
+        },
+        's10_help_yukkin': {
+            onEnter: (s) => { s.survivors.katopan = false; },
+            text: `俺はかとぱんを蹴り飛ばし、ゆっきんの腕だけを掴んだ。かとぱんは悲鳴もなく闇に消えた。
+<span class="character-name">ゆっきん</span>「…助けてくれたのか。…借りが、できちまったな」
+ゆっきんを助けたが、主犯のみっきんが、冷たい目でこちらを見ていた。`,
+            choices: [
+                { text: '…決着の時だ', next: 's11_final_confrontation' }
+            ]
+        },
+        's10_help_katopan': {
+            onEnter: (s) => { s.survivors.yukkin = false; s.player.suspicion += 5; },
+            text: `俺はゆっきんを突き飛ばし、かとぱんの手を掴んだ。ゆっきんは驚愕の顔で落ちていった。
+<span class="character-name">かとぱん</span>「…クク、賢明な判断だ。君は使える」
+かとぱんを助けたことで、俺は他の生存者から完全に犯人一味だと思われただろう。`,
+            choices: [
+                { text: '…決着の時だ', next: 's11_final_confrontation' }
+            ]
+        },
+        's10_abandon_both': {
+            onEnter: (s) => { s.survivors.yukkin = false; s.survivors.katopan = false; },
+            text: `俺は、何もせず、二人が崖から落ちていくのを見届けた。
+これで共犯者の一人は消えた。だが、俺の心もまた、深く闇に沈んでいった。`,
+            choices: [
+                { text: '…決着の時だ', next: 's11_final_confrontation' }
+            ]
+        },
+        
+        // --- クライマックス：真相 ---
+        's11_final_confrontation': {
+            text: `山頂直下。生き残った者たちが、互いを睨み合っている。
+俺は息を整え、口を開いた。
+「犯人が、わかった」`,
+            choices: [
+                { text: '告発する', next: 's12_accusation' }
+            ]
+        },
+        's12_accusation': {
+            text: `「全ての元凶は…」`,
+            choices: [
+                { condition: (s) => s.knowledge.debucone_poison_method >= 3 && s.knowledge.mikkin_katopan_signal, text: '主犯はみっきん、共犯はかとぱんだ！', next: 's13_true_ending_route' },
+                { text: '主犯はみっきんだ！', next: 's12_bad_end_mikkin' },
+                { text: '主犯はかとぱんだ！', next: 's12_bad_end_katopan' },
+                { text: '犯人はおちぷーだ！', next: 's12_bad_end_other' }
+            ]
+        },
+        's12_bad_end_mikkin': {
+            text: `俺がみっきんを指さした瞬間、生き残っていたかとぱん（あるいは別の誰か）が俺の背後から襲いかかった。
+<span class="character-name">みっきん</span>「惜しい。片方だけじゃ、満点じゃないよ」`,
+            gameOver: 'BAD END. 主犯は見抜いたが、共犯者を見逃した。背中はがら空きだったな。'
+        },
+        's12_bad_end_katopan': {
+            text: `俺がかとぱんを指さした瞬間、みっきんが俺の喉を掻き切った。
+<span class="character-name">みっきん</span>「あは、残念。彼は私の大事な助手なのに」`,
+            gameOver: 'BAD END. 実行犯に気を取られ、黒幕に気づかなかった。'
+        },
+        's12_bad_end_other': {
+            text: `俺が見当違いの相手を指さした途端、みっきんとかとぱんが同時に笑い出した。
+<span class="character-name">みっきん</span>「大ハズレ！面白かったよ、君」
+二人の凶刃が、俺の体を貫いた。`,
+            gameOver: 'BAD END. 推理は、最初から破綻していた。'
+        },
+        
+        // --- 真相ルート ---
+        's13_true_ending_route': {
+            onEnter: (s) => { s.survivors.katopan = s.survivors.katopan; }, //
+            text: `「主犯は、この惨劇を楽しんでいたお前だ、みっきん！そして、お前の指示で殺人という名の『実験』を繰り返した共犯者、かとぱんだ！」
+俺は、おちぷーのメモのことも含め、見てきた全てをぶちまけた。
+みっきんは一瞬驚いた顔をしたが、やがて狂気の笑みを浮かべた。
+<span class="character-name">みっきん</span>「…あはははは！満点！満点だよ！まさか全部見抜かれるなんて！最高！」`,
+            choices: [
+                { condition: (s) => s.survivors.katopan, text: 'みっきんと、生き残っているかとぱんが襲い掛かってきた！', next: 's13_final_battle_duo' },
+                { condition: (s) => !s.survivors.katopan, text: '共犯者を失ったみっきんが、一人で襲い掛かってきた！', next: 's13_final_battle_solo' }
+            ]
+        },
+        's13_final_battle_duo': {
+            text: `かとぱんが注射器を、みっきんがナイフを構える。絶体絶命だ。
+だが、その時！
+<span class="character-name">？？？</span>「させるかよ！」`,
+            choices: [
+                { condition: (s) => s.trust.ochipu > 4, text: 'おちぷーが、かとぱんにタックルした！', next: 's13_ochipu_brave' },
+                { condition: (s) => s.trust.nobun > 2, text: 'のぶんが、みっきんに釣り糸を投げつけた！', next: 's13_nobun_brave' },
+                { condition: (s) => s.trust.yukkin > 1, text: 'ゆっきんが、俺を庇って前に立った！', next: 's13_yukkin_brave' },
+                { text: '（誰も助けてくれない…！）', next: 's13_no_help' }
+            ]
+        },
+        's13_no_help': {
+            text: '期待したが、誰も助けてはくれなかった。俺は二人の凶刃の前に、なす術もなく崩れ落ちた。',
+            gameOver: 'GAME OVER. 真相は暴いた。だが、仲間からの信頼がなければ、生き残ることはできない。'
+        },
+        's13_ochipu_brave': {
+            text: 'おちぷーが捨て身のタックルでかとぱんを崖下へ突き落とした。だが、彼も一緒に落ちていった。<span class="character-name">おちぷー</span>「借りは…返したぜ…」最後に聞こえたのは、卑怯者らしからぬ声だった。',
+            onEnter: (s) => { s.survivors.ochipu = false; s.survivors.katopan = false; },
+            choices: [{text: '残るはみっきんだけだ！', next: 's13_final_battle_solo' }]
+        },
+        's13_nobun_brave': {
+            text: 'のぶんの投げた釣り糸がみっきんの首に絡みついた。みっきんは怯むが、かとぱんの注射器がのぶんの首に突き刺さる。<span class="character-name">のぶん</span>「…行け…！」のぶんは倒れた。',
+            onEnter: (s) => { s.survivors.nobun = false; },
+            choices: [{text: '（のぶんの隙を無駄にしない！）かとぱんに突撃する！', next: 's13_attack_katopan' }]
+        },
+        's13_yukkin_brave': {
+            text: 'ゆっきんが俺の前に立ち、みっきんのナイフをその身に受けた。<span class="character-name">ゆっきん</span>「…この賭けは…俺の勝ちだな…」ゆっきんは笑って倒れた。',
+            onEnter: (s) => { s.survivors.yukkin = false; },
+            choices: [{text: '（ゆっきんの覚悟を無駄にしない！）かとぱんに突撃する！', next: 's13_attack_katopan' }]
+        },
+        's13_attack_katopan': {
+            text: '仲間が作った一瞬の隙。俺はかとぱんに全力でぶつかり、崖下へと突き落とした。',
+            onEnter: (s) => { s.survivors.katopan = false; },
+            choices: [{text: '残るはみっきんだけだ！', next: 's13_final_battle_solo' }]
+        },
+        's13_final_battle_solo': {
+            text: `一人になったみっきんは、それでも楽しそうに笑っている。
+<span class="character-name">みっきん</span>「最高だよ！最高の舞台じゃない！さあ、私と踊ろう！」
+ナイフを構えたみっきんが襲い掛かってくる。`,
+            choices: [
+                { condition: (s) => s.inventory.includes('knife'), text: '（のぶんのナイフで戦う！）', next: 's14_end_fight' },
+                { text: '（崖に突き落とす！）', next: 's14_end_push' }
+            ]
+        },
+        's14_end_fight': {
+            text: '俺は懐からナイフを取り出し、みっきんの刃を受け止めた。激しい攻防の末、俺のナイフが彼女の心臓を貫いた。<span class="character-name">みっきん</span>「…あは…最高の…エンディング…」彼女は満足そうに笑って、死んだ。',
+            choices: [{ text: '…終わった…', next: 's15_epilogue' }]
+        },
+        's14_end_push': {
+            text: '俺は彼女の攻撃をかいくぐり、その華奢な体を抱え、崖へと突き飛ばした。みっきんは、最期の瞬間まで、楽しそうな笑顔だった。',
+            choices: [{ text: '…終わった…', next: 's15_epilogue' }]
+        },
+
+        // --- エンディング ---
+        's15_epilogue': {
+            text: `俺は、生き残った者たち（あるいは一人で）山頂にたどり着いた。
+ご来光が、世界を茜色に染めていく。
+美しい。だが、その光景は、あまりにも血の色に似ていた。
+
+下山後、俺たちは「大規模な滑落事故」として処理された。
+生存者の証言は、極限状態による錯乱として、食い違いは不問とされた。
+真相は、富士の闇に葬られた。
+
+俺は今も、自問する。
+あの山で、友を殺し、友を見捨て、生き延びた俺は、果たして「勝者」なのだろうか。
+いいや、違う。
+
+あの山に登った時点で、俺たち全員、とうに敗者だったのだ。
+
+【TRUE SURVIVOR】`,
+            choices: [
+                { text: 'タイトルに戻る', next: 'title_return' }
+            ]
+        },
+        'title_return': {
+            isEnd: true
+        }
+    }
+};
+
+
+// --- ゲームエンジン部分 (変更なし) ---
+let state;
+const scenes = gameData.scenes;
+
+const titleScreen = document.getElementById('title-screen');
+const startButton = document.getElementById('start-button');
+const gameContent = document.getElementById('game-content');
+const textArea = document.getElementById('text-area');
+const choicesArea = document.getElementById('choices-area');
+
+let currentSceneId = 'start';
+
+function initializeState() {
+    state = JSON.parse(JSON.stringify(gameData.state)); // 深いコピーで初期化
+}
+
+function startGame() {
+    initializeState();
+    titleScreen.style.display = 'none';
+    gameContent.style.display = 'block';
+    setTimeout(() => {
+        gameContent.style.opacity = 1;
+        displayScene(currentSceneId);
+    }, 10);
+}
+
+function displayScene(id) {
+    const scene = scenes[id];
+
+    if (!scene) {
+        console.error(`Scene with id "${id}" not found.`);
+        return;
+    }
+    
+    if (scene.onEnter) {
+        scene.onEnter(state);
+    }
+    
+    if (scene.gameOver) {
+        textArea.innerHTML = scene.text + `<br><br><strong style="color: var(--accent-color);">${scene.gameOver}</strong>`;
+        choicesArea.innerHTML = `<div class="choice">タイトルに戻る</div>`;
+        choicesArea.querySelector('.choice').onclick = () => window.location.reload();
+        return;
+    }
+    
+    if (scene.isEnd) {
+        window.location.reload();
+        return;
+    }
+
+    textArea.innerHTML = scene.text.replace(/\n/g, '<br>');
+    choicesArea.innerHTML = '';
+    
+    const availableChoices = scene.choices.filter(choice => {
+        return !choice.condition || choice.condition(state);
+    });
+
+    availableChoices.forEach(choiceData => {
+        const choiceElement = document.createElement('div');
+        choiceElement.classList.add('choice');
+        choiceElement.innerHTML = choiceData.text;
+        choiceElement.onclick = () => {
+            currentSceneId = choiceData.next;
+            // 画面を一番下までスクロールさせる
+            setTimeout(() => {
+                const gameContainer = document.getElementById('game-container');
+                gameContainer.scrollTop = gameContainer.scrollHeight;
+            }, 0);
+            displayScene(currentSceneId);
+        };
+        choicesArea.appendChild(choiceElement);
+    });
+}
+
+startButton.addEventListener('click', startGame);
+
+</script>
+
+</body>
+</html>
